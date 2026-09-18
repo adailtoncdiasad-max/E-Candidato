@@ -8,6 +8,29 @@ const DEFAULT_HEADERS = {
   "Accept": "application/json",
 };
 
+const TSE_REQUEST_TIMEOUT_MS = 10_000;
+const MAX_DATASET_ROWS = 100;
+
+async function fetchTseJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TSE_REQUEST_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      headers: DEFAULT_HEADERS,
+      signal: signal ?? controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`TSE respondeu HTTP ${res.status}`);
+    }
+
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Strategic mapping of TSE groups to E-Candidato modules
 export const TSE_STRATEGIC_GROUPS = [
   {
@@ -125,8 +148,8 @@ export async function getTseOverview() {
   const start = Date.now();
   try {
     const [pkgRes, groupRes] = await Promise.all([
-      fetch(`${TSE_BASE_URL}/package_list`, { headers: DEFAULT_HEADERS }),
-      fetch(`${TSE_BASE_URL}/group_list`, { headers: DEFAULT_HEADERS }),
+      fetchTseJson<any>(`${TSE_BASE_URL}/package_list`),
+      fetchTseJson<any>(`${TSE_BASE_URL}/group_list`),
     ]);
 
     const pkgData = await pkgRes.json();
@@ -141,6 +164,8 @@ export async function getTseOverview() {
       orgCount: 7,
       latencyMs: latency,
       lastChecked: new Date().toISOString(),
+      source: "live",
+      stale: false,
       rawGroups: groupData.result || [],
     };
   } catch (error: any) {
@@ -153,6 +178,8 @@ export async function getTseOverview() {
       latencyMs: Date.now() - start,
       lastChecked: new Date().toISOString(),
       error: error?.message || "Falha na conexão com TSE",
+      source: "fallback",
+      stale: true,
       rawGroups: TSE_STRATEGIC_GROUPS.map((g) => g.name),
     };
   }
@@ -162,8 +189,10 @@ export async function getTseOverview() {
  * Search datasets in TSE CKAN catalog
  */
 export async function searchTseDatasets(query = "", group = "", rows = 12) {
+  const safeRows = Math.min(Math.max(Math.trunc(Number(rows)) || 12, 1), MAX_DATASET_ROWS);
+
   try {
-    let url = `${TSE_BASE_URL}/package_search?rows=${rows}`;
+    let url = `${TSE_BASE_URL}/package_search?rows=${safeRows}`;
     if (query) {
       url += `&q=${encodeURIComponent(query)}`;
     }
@@ -171,8 +200,7 @@ export async function searchTseDatasets(query = "", group = "", rows = 12) {
       url += `&fq=groups:${encodeURIComponent(group)}`;
     }
 
-    const res = await fetch(url, { headers: DEFAULT_HEADERS });
-    const data = await res.json();
+    const data = await fetchTseJson<any>(url);
 
     if (!data.success) {
       throw new Error("Resposta sem sucesso do servidor TSE");
@@ -180,6 +208,8 @@ export async function searchTseDatasets(query = "", group = "", rows = 12) {
 
     return {
       count: data.result.count,
+      source: "live" as const,
+      stale: false,
       results: data.result.results.map((item: any) => ({
         id: item.id,
         name: item.name,
@@ -213,7 +243,7 @@ export async function searchTseDatasets(query = "", group = "", rows = 12) {
   } catch (error: any) {
     console.error("[TSE API Error] searchTseDatasets:", error);
     // Return structured fallback based on known datasets
-    return getFallbackDatasets(group || query);
+    return { ...getFallbackDatasets(group || query), source: "fallback" as const, stale: true };
   }
 }
 
@@ -223,8 +253,7 @@ export async function searchTseDatasets(query = "", group = "", rows = 12) {
 export async function getTseDatasetDetails(packageId: string) {
   try {
     const url = `${TSE_BASE_URL}/package_show?id=${encodeURIComponent(packageId)}`;
-    const res = await fetch(url, { headers: DEFAULT_HEADERS });
-    const data = await res.json();
+    const data = await fetchTseJson<any>(url);
     return data.result;
   } catch (error) {
     console.error("[TSE API Error] getTseDatasetDetails:", error);
@@ -319,5 +348,7 @@ function getFallbackDatasets(filter = "") {
   return {
     count: allFallback.length,
     results: allFallback,
+    source: "fallback" as const,
+    stale: true,
   };
 }

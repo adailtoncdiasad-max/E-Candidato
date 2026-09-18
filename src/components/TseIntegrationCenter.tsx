@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Database,
   RefreshCw,
@@ -54,6 +54,7 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
   const [datasets, setDatasets] = useState<TSEDataset[]>([]);
   const [loadingDatasets, setLoadingDatasets] = useState(false);
   const [activeTab, setActiveTab] = useState<"catalog" | "architecture" | "pipeline">("catalog");
+  const datasetsRequestId = useRef(0);
 
   // Ingestion Pipelines simulation matching architecture
   const [pipelines, setPipelines] = useState<TSEIngestionPipelineStatus[]>([
@@ -131,22 +132,23 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
 
   // Search datasets from backend or fallback service
   const fetchDatasets = async (query = "", group = "") => {
+    const requestId = ++datasetsRequestId.current;
     setLoadingDatasets(true);
     try {
       const groupParam = group === "todos" ? "" : group;
       const res = await fetch(`/api/tse/datasets?q=${encodeURIComponent(query)}&group=${encodeURIComponent(groupParam)}&rows=15`);
       if (res.ok) {
         const data = await res.json();
-        setDatasets(data.results || []);
+        if (requestId === datasetsRequestId.current) setDatasets(data.results || []);
       } else {
         const fallback = await searchTseDatasets(query, groupParam);
-        setDatasets(fallback.results);
+        if (requestId === datasetsRequestId.current) setDatasets(fallback.results);
       }
     } catch {
       const fallback = await searchTseDatasets(query, group === "todos" ? "" : group);
-      setDatasets(fallback.results);
+      if (requestId === datasetsRequestId.current) setDatasets(fallback.results);
     } finally {
-      setLoadingDatasets(false);
+      if (requestId === datasetsRequestId.current) setLoadingDatasets(false);
     }
   };
 
@@ -201,6 +203,9 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {connection.online ? "Online (Ativo)" : "Standby"}
                 </span>
+                {connection.stale && (
+                  <span className="text-[10px] font-bold text-amber-300">Dados demonstrativos</span>
+                )}
               </div>
               <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                 Latência: <span className="text-[#D4A537] font-bold">{connection.latencyMs}ms</span> | Endpoints: <span className="text-white">/api/3/action</span>

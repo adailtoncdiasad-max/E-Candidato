@@ -17,6 +17,20 @@ import {
 import { CandidateProfile, SphereType } from '../types';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
+function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeProgress(current: number, target: number): number {
+  if (!Number.isFinite(current) || !Number.isFinite(target) || target <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((current / target) * 100)));
+}
+
 interface AppExportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -37,6 +51,7 @@ export const AppExportModal: React.FC<AppExportModalProps> = ({
   if (!isOpen) return null;
 
   const currentUrl = typeof window !== 'undefined' ? window.location.href : 'https://e-candidato.app';
+  const progress = safeProgress(candidate.currentEstimatedVotes, candidate.targetVotes);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -51,7 +66,7 @@ export const AppExportModal: React.FC<AppExportModalProps> = ({
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>E-Candidato: Dossiê Executivo de Campanha - ${candidate.ballotName}</title>
+  <title>E-Candidato: Dossiê Executivo de Campanha - ${escapeHtml(candidate.ballotName)}</title>
   <style>
     :root {
       --bg: #0B1B2B;
@@ -126,7 +141,7 @@ export const AppExportModal: React.FC<AppExportModalProps> = ({
     .progress-fill {
       height: 100%;
       background: linear-gradient(90deg, var(--emerald), var(--gold));
-      width: ${Math.min(100, Math.round((candidate.currentEstimatedVotes / candidate.targetVotes) * 100))}%;
+      width: ${progress}%;
     }
     .table-box {
       background: var(--card-bg);
@@ -159,10 +174,10 @@ export const AppExportModal: React.FC<AppExportModalProps> = ({
     </header>
 
     <div class="hero">
-      <h1>${candidate.ballotName} (${candidate.number})</h1>
-      <p><strong>Cargo Almejado:</strong> ${candidate.role} | <strong>Partido:</strong> ${candidate.party} | <strong>Coligação:</strong> ${candidate.coalition}</p>
-      <p style="margin-top: 8px;"><strong>Slogan da Campanha:</strong> "${candidate.campaignSlogan}"</p>
-      <p><strong>Praça Eleitoral:</strong> ${candidate.location}</p>
+      <h1>${escapeHtml(candidate.ballotName)} (${escapeHtml(candidate.number)})</h1>
+      <p><strong>Cargo Almejado:</strong> ${escapeHtml(candidate.role)} | <strong>Partido:</strong> ${escapeHtml(candidate.party)} | <strong>Coligação:</strong> ${escapeHtml(candidate.coalition)}</p>
+      <p style="margin-top: 8px;"><strong>Slogan da Campanha:</strong> "${escapeHtml(candidate.campaignSlogan)}"</p>
+      <p><strong>Praça Eleitoral:</strong> ${escapeHtml(candidate.location)}</p>
     </div>
 
     <div class="grid">
@@ -171,7 +186,7 @@ export const AppExportModal: React.FC<AppExportModalProps> = ({
         <div class="card-value">${candidate.currentEstimatedVotes.toLocaleString('pt-BR')}</div>
         <div class="progress-bar"><div class="progress-fill"></div></div>
         <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">
-          ${Math.min(100, Math.round((candidate.currentEstimatedVotes / candidate.targetVotes) * 100))}% da meta atingida
+          ${progress}% da meta atingida
         </p>
       </div>
       <div class="card">

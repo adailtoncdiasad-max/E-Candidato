@@ -11,9 +11,52 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
+const TSE_REQUEST_TIMEOUT_MS = 10_000;
+const MAX_DATASET_ROWS = 100;
+const AI_RATE_WINDOW_MS = 60_000;
+const AI_RATE_LIMIT = 20;
+const aiRequestsByIp = new Map<string, { count: number; resetAt: number }>();
+let tseStatusCache: { expiresAt: number; data: unknown } | null = null;
 
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
+
+async function fetchTseJson<T>(url: string): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TSE_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, { headers: TSE_HEADERS, signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`TSE respondeu HTTP ${response.status}`);
+    }
+    return (await response.json()) as T;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function aiRateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const now = Date.now();
+  const key = req.ip || "unknown";
+  const current = aiRequestsByIp.get(key);
+
+  if (!current || current.resetAt <= now) {
+    aiRequestsByIp.set(key, { count: 1, resetAt: now + AI_RATE_WINDOW_MS });
+    return next();
+  }
+
+  if (current.count >= AI_RATE_LIMIT) {
+    return res.status(429).json({
+      success: false,
+      error: "Limite temporário de solicitações de IA excedido. Tente novamente mais tarde.",
+      retryAfterSeconds: Math.ceil((current.resetAt - now) / 1000),
+    });
+  }
+
+  current.count += 1;
+  return next();
+}
 
 // Initialize Gemini client lazily with telemetry headers
 let geminiClient: GoogleGenAI | null = null;
@@ -37,7 +80,7 @@ app.get("/api/health", (_req, res) => {
     status: "ok",
     app: "E-Candidato",
     hasGeminiKey: !!process.env.GEMINI_API_KEY,
-    tseConnected: true,
+    tseConfigured: Boolean(TSE_BASE_URL),
     timestamp: new Date().toISOString(),
   });
 });
@@ -51,11 +94,15 @@ const TSE_HEADERS = {
 
 app.get("/api/tse/status", async (_req, res) => {
   const start = Date.now();
+  if (tseStatusCache && tseStatusCache.expiresAt > Date.now()) {
+    return res.json(tseStatusCache.data);
+  }
+
   try {
     const [pkgRes, groupRes, orgRes] = await Promise.all([
-      fetch(`${TSE_BASE_URL}/package_list`, { headers: TSE_HEADERS }),
-      fetch(`${TSE_BASE_URL}/group_list`, { headers: TSE_HEADERS }),
-      fetch(`${TSE_BASE_URL}/organization_list`, { headers: TSE_HEADERS }),
+      fetchTseJson<any>(`${TSE_BASE_URL}/package_list`),
+      fetchTseJson<any>(`${TSE_BASE_URL}/group_list`),
+      fetchTseJson<any>(`${TSE_BASE_URL}/organization_list`),
     ]);
 
     const pkgData = await pkgRes.json();
@@ -63,47 +110,56 @@ app.get("/api/tse/status", async (_req, res) => {
     const orgData = await orgRes.json();
     const latency = Date.now() - start;
 
-    res.json({
+    const status = {
       online: pkgData.success === true,
       endpoint: TSE_BASE_URL,
-      datasetCount: pkgData.result?.length || 182,
-      groupCount: groupData.result?.length || 12,
-      orgCount: orgData.result?.length || 7,
+      datasetCount: pkgData.result?.length || 0,
+      groupCount: groupData.result?.length || 0,
+      orgCount: orgData.result?.length || 0,
       latencyMs: latency,
       lastChecked: new Date().toISOString(),
+      source: "live",
+      stale: false,
       groups: groupData.result || [],
       organizations: orgData.result || [],
-    });
+    };
+    tseStatusCache = { expiresAt: Date.now() + 30_000, data: status };
+    res.json(status);
   } catch (err: any) {
-    res.json({
+    const status = {
       online: false,
       endpoint: TSE_BASE_URL,
-      datasetCount: 182,
-      groupCount: 12,
-      orgCount: 7,
+      datasetCount: 0,
+      groupCount: 0,
+      orgCount: 0,
       latencyMs: Date.now() - start,
       lastChecked: new Date().toISOString(),
+      source: "fallback",
+      stale: true,
       error: err?.message || "Falha ao conectar no portal TSE",
-    });
+    };
+    res.status(502).json(status);
   }
 });
 
 app.get("/api/tse/datasets", async (req, res) => {
   const query = (req.query.q as string) || "";
   const group = (req.query.group as string) || "";
-  const rows = parseInt((req.query.rows as string) || "12", 10);
+  const requestedRows = Number.parseInt((req.query.rows as string) || "12", 10);
+  const rows = Math.min(Math.max(Number.isFinite(requestedRows) ? requestedRows : 12, 1), MAX_DATASET_ROWS);
 
   try {
     let url = `${TSE_BASE_URL}/package_search?rows=${rows}`;
     if (query) url += `&q=${encodeURIComponent(query)}`;
     if (group) url += `&fq=groups:${encodeURIComponent(group)}`;
 
-    const response = await fetch(url, { headers: TSE_HEADERS });
-    const data = await response.json();
+    const data = await fetchTseJson<any>(url);
 
     if (data.success) {
       res.json({
         count: data.result.count,
+        source: "live",
+        stale: false,
         results: data.result.results.map((item: any) => ({
           id: item.id,
           name: item.name,
@@ -177,7 +233,7 @@ async function generateGeminiContentWithFallback(
 }
 
 // AI Campaign Content & Speech Generator
-app.post("/api/ai/speech-strategy", async (req, res) => {
+app.post("/api/ai/speech-strategy", aiRateLimit, async (req, res) => {
   try {
     const {
       sphere = "Municipal",
@@ -268,7 +324,7 @@ ${
 });
 
 // AI Crisis Management & Fast Rebuttal
-app.post("/api/ai/crisis-counter", async (req, res) => {
+app.post("/api/ai/crisis-counter", aiRateLimit, async (req, res) => {
   try {
     const {
       attackDescription = "Acusação sobre verba de gabinete e propostas genéricas",

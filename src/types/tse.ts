@@ -46,6 +46,9 @@ export interface TSEConnectionStatus {
   orgCount: number;
   latencyMs: number;
   lastChecked: string;
+  source?: "live" | "fallback";
+  stale?: boolean;
+  error?: string;
 }
 
 export interface TSEIngestionPipelineStatus {

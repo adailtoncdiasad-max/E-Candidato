@@ -16,8 +16,6 @@ export const CandidateModal: React.FC<CandidateModalProps> = ({
   onClose,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
   const [presetCategory, setPresetCategory] = useState<string>(
     candidate.sphere === "Federal"
       ? "Federal"
@@ -33,6 +31,9 @@ export const CandidateModal: React.FC<CandidateModalProps> = ({
   const [campaignSlogan, setCampaignSlogan] = useState(candidate.campaignSlogan);
   const [targetVotes, setTargetVotes] = useState(candidate.targetVotes);
   const [location, setLocation] = useState(candidate.location);
+  const [validationError, setValidationError] = useState("");
+
+  if (!isOpen) return null;
 
   const filteredPresets =
     presetCategory === "TODOS"
@@ -58,6 +59,12 @@ export const CandidateModal: React.FC<CandidateModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!Number.isSafeInteger(targetVotes) || targetVotes <= 0) {
+      setValidationError("A meta de votos deve ser um número inteiro positivo.");
+      return;
+    }
+
+    setValidationError("");
     onSave({
       ballotName,
       role,
@@ -243,10 +250,15 @@ export const CandidateModal: React.FC<CandidateModalProps> = ({
             <input
               type="number"
               value={targetVotes}
+              min={1}
+              step={1}
               onChange={(e) => setTargetVotes(Number(e.target.value))}
               required
               className="w-full p-2.5 rounded-xl bg-[#0B1B2B] border border-[#1E3A5F] text-white font-mono focus:outline-none focus:border-[#D4A537]"
             />
+              {validationError && (
+                <p className="mt-1 text-[11px] text-rose-300">{validationError}</p>
+              )}
           </div>
 
           <div className="pt-3 border-t border-[#1E3A5F] flex justify-end gap-2">

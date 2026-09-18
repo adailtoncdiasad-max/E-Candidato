@@ -77,6 +77,8 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
   const validTotal = totalProjectedOur + totalProjectedOpp;
   const ourValidPct = validTotal > 0 ? ((totalProjectedOur / validTotal) * 100).toFixed(1) : "50.0";
   const oppValidPct = validTotal > 0 ? ((totalProjectedOpp / validTotal) * 100).toFixed(1) : "50.0";
+  const chartWidth = Math.max(400, 80 + Math.max(polls.length - 1, 0) * 105);
+  const chartStep = polls.length > 1 ? (chartWidth - 80) / (polls.length - 1) : 0;
 
   return (
     <div id="predictive-polls-container" className="space-y-6">
@@ -170,7 +172,7 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
             </div>
 
             {/* SVG Lines */}
-            <svg className="w-full h-full absolute inset-0" preserveAspectRatio="none" viewBox="0 0 400 200">
+            <svg className="w-full h-full absolute inset-0" preserveAspectRatio="none" viewBox={`0 0 ${chartWidth} 200`}>
               {/* Line: Our Candidate (Gold) */}
               <polyline
                 fill="none"
@@ -180,7 +182,7 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
                 strokeLinejoin="round"
                 points={polls
                   .map((p, i) => {
-                    const x = 40 + i * 105;
+                    const x = 40 + i * chartStep;
                     const y = 190 - p.ourCandidate * 4;
                     return `${x},${y}`;
                   })
@@ -195,7 +197,7 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
                 strokeDasharray="4 2"
                 points={polls
                   .map((p, i) => {
-                    const x = 40 + i * 105;
+                    const x = 40 + i * chartStep;
                     const y = 190 - p.opponentA * 4;
                     return `${x},${y}`;
                   })
@@ -209,7 +211,7 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
                 strokeWidth="2"
                 points={polls
                   .map((p, i) => {
-                    const x = 40 + i * 105;
+                    const x = 40 + i * chartStep;
                     const y = 190 - p.opponentB * 4;
                     return `${x},${y}`;
                   })
@@ -218,7 +220,7 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
 
               {/* Data points for our candidate */}
               {polls.map((p, i) => {
-                const x = 40 + i * 105;
+                const x = 40 + i * chartStep;
                 const y = 190 - p.ourCandidate * 4;
                 const isSelected = activePoll.id === p.id;
                 return (
