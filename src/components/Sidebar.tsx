@@ -15,11 +15,19 @@ import {
   Smartphone,
   X,
   Database,
+  Calendar,
+  FlaskConical,
+  Users,
+  BellRing,
 } from "lucide-react";
 import { CandidateProfile } from "../types";
 
 export type NavModule =
   | "overview"
+  | "volunteers_push"
+  | "events_calendar"
+  | "scenario_simulator"
+  | "multi_candidates"
   | "polls"
   | "hexmap"
   | "social"
@@ -72,6 +80,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: "overview",
       label: "Visão Geral (Cockpit)",
       icon: LayoutDashboard,
+    },
+    {
+      id: "volunteers_push",
+      label: "Voluntários & Push",
+      badge: "Militância",
+      badgeColor: "text-rose-300 bg-rose-950/60 border-rose-700/50",
+      icon: BellRing,
+    },
+    {
+      id: "events_calendar",
+      label: "Agenda & Calendário",
+      badge: "Mobilização",
+      badgeColor: "text-amber-300 bg-amber-950/60 border-amber-700/50",
+      icon: Calendar,
+    },
+    {
+      id: "scenario_simulator",
+      label: "Simulador de Propostas",
+      badge: "Testador IA",
+      badgeColor: "text-[#D4A537] bg-[#D4A537]/20 border-[#D4A537]/50",
+      icon: FlaskConical,
+    },
+    {
+      id: "multi_candidates",
+      label: "Gestão Multi-Candidatos",
+      badge: "Comitê",
+      badgeColor: "text-cyan-300 bg-cyan-950/60 border-cyan-700/50",
+      icon: Users,
     },
     {
       id: "polls",

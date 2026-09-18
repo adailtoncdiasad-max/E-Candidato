@@ -1,6 +1,22 @@
 import React, { useState } from "react";
-import { SphereType, CandidateProfile, TerritoryZone, CriticalAlert, SocietalTheme } from "./types";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  SphereType,
+  CandidateProfile,
+  TerritoryZone,
+  CriticalAlert,
+  SocietalTheme,
+  CampaignEvent,
+  ProposalSimulationRecord,
+  EventStatus,
+  Volunteer,
+  PushNotificationRecord,
+} from "./types";
 import { electionDataBySphere } from "./data/mockElectionData";
+import { INITIAL_CAMPAIGN_EVENTS } from "./data/campaignEventsData";
+import { INITIAL_PROPOSAL_SCENARIOS } from "./data/proposalScenariosData";
+import { INITIAL_CANDIDATES_LIST, ExtendedCandidateItem } from "./data/multiCandidatesData";
+import { INITIAL_VOLUNTEERS, INITIAL_PUSH_NOTIFICATIONS } from "./data/volunteersData";
 import { Navbar } from "./components/Navbar";
 import { Sidebar, NavModule } from "./components/Sidebar";
 import { DashboardOverview } from "./components/DashboardOverview";
@@ -17,6 +33,10 @@ import { CandidateModal } from "./components/CandidateModal";
 import { AppExportModal } from "./components/AppExportModal";
 import { OfflineIndicator } from "./components/OfflineIndicator";
 import { TseIntegrationCenter } from "./components/TseIntegrationCenter";
+import { CampaignCalendar } from "./components/CampaignCalendar";
+import { ProposalScenarioSimulator } from "./components/ProposalScenarioSimulator";
+import { MultiCandidateManager } from "./components/MultiCandidateManager";
+import { VolunteersDashboard } from "./components/VolunteersDashboard";
 
 export default function App() {
   const [currentSphere, setCurrentSphere] = useState<SphereType>("Municipal");
@@ -25,6 +45,20 @@ export default function App() {
   // Dynamic campaign data by sphere
   const [datasets, setDatasets] = useState(electionDataBySphere);
   const currentData = datasets[currentSphere];
+
+  // Multi-Candidate List State
+  const [candidatesList, setCandidatesList] = useState<ExtendedCandidateItem[]>(INITIAL_CANDIDATES_LIST);
+  const [activeCandidateId, setActiveCandidateId] = useState<string>("cand-bruno-reis");
+
+  // Campaign Events State
+  const [campaignEvents, setCampaignEvents] = useState<CampaignEvent[]>(INITIAL_CAMPAIGN_EVENTS);
+
+  // Proposal Simulation Scenarios State
+  const [proposalScenarios, setProposalScenarios] = useState<ProposalSimulationRecord[]>(INITIAL_PROPOSAL_SCENARIOS);
+
+  // Volunteers & Push Notifications State
+  const [volunteers, setVolunteers] = useState<Volunteer[]>(INITIAL_VOLUNTEERS);
+  const [pushNotifications, setPushNotifications] = useState<PushNotificationRecord[]>(INITIAL_PUSH_NOTIFICATIONS);
 
   // Mobile menu state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -69,6 +103,69 @@ export default function App() {
         },
       },
     }));
+  };
+
+  // Switch Active Candidate from MultiCandidateManager
+  const handleSelectActiveCandidate = (cand: ExtendedCandidateItem) => {
+    setActiveCandidateId(cand.id);
+    setCurrentSphere(cand.sphere);
+    setDatasets((prev) => ({
+      ...prev,
+      [cand.sphere]: {
+        ...prev[cand.sphere],
+        candidate: {
+          ...prev[cand.sphere].candidate,
+          id: cand.id,
+          name: cand.name,
+          ballotName: cand.ballotName,
+          number: cand.number,
+          party: cand.party,
+          coalition: cand.coalition,
+          sphere: cand.sphere,
+          role: cand.role,
+          location: cand.location,
+          totalVoters: cand.totalVoters,
+          targetVotes: cand.targetVotes,
+          currentEstimatedVotes: cand.currentEstimatedVotes,
+          viabilityScore: cand.viabilityScore,
+          campaignSlogan: cand.campaignSlogan,
+        },
+      },
+    }));
+  };
+
+  // Add new candidate to collection
+  const handleAddNewCandidate = (newCand: ExtendedCandidateItem) => {
+    setCandidatesList((prev) => [newCand, ...prev]);
+  };
+
+  // Campaign Event Handlers
+  const handleAddCampaignEvent = (newEvent: CampaignEvent) => {
+    setCampaignEvents((prev) => [newEvent, ...prev]);
+  };
+
+  const handleUpdateEventStatus = (eventId: string, newStatus: EventStatus) => {
+    setCampaignEvents((prev) =>
+      prev.map((evt) => (evt.id === eventId ? { ...evt, status: newStatus } : evt))
+    );
+  };
+
+  const handleDeleteEvent = (eventId: string) => {
+    setCampaignEvents((prev) => prev.filter((evt) => evt.id !== eventId));
+  };
+
+  // Proposal Simulator Handler
+  const handleSaveProposalScenario = (newScenario: ProposalSimulationRecord) => {
+    setProposalScenarios((prev) => [newScenario, ...prev]);
+  };
+
+  // Volunteer & Militância Handlers
+  const handleAddVolunteer = (newVolunteer: Volunteer) => {
+    setVolunteers((prev) => [newVolunteer, ...prev]);
+  };
+
+  const handleSendPushNotification = (newPush: PushNotificationRecord) => {
+    setPushNotifications((prev) => [newPush, ...prev]);
   };
 
   // Quick Action: Territorial AI trigger
@@ -141,6 +238,8 @@ export default function App() {
         onOpenExportModal={() => setIsExportModalOpen(true)}
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         onOpenTseData={() => setCurrentModule("tse_data")}
+        onOpenMultiCandidates={() => setCurrentModule("multi_candidates")}
+        onOpenVolunteersPush={() => setCurrentModule("volunteers_push")}
       />
 
       {/* Main App Layout */}
@@ -157,96 +256,147 @@ export default function App() {
           onOpenExportModal={() => setIsExportModalOpen(true)}
         />
 
-        {/* Dynamic Main Content Area */}
+        {/* Dynamic Main Content Area with Motion Route Transitions */}
         <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto max-w-full">
-          {currentModule === "overview" && (
-            <DashboardOverview
-              candidate={currentData.candidate}
-              territories={currentData.territories}
-              polls={currentData.polls}
-              socialStats={currentData.socialStats}
-              alerts={currentData.alerts}
-              onNavigate={setCurrentModule}
-              onOpenAlertAction={handleOpenAlertAction}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentModule}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="w-full"
+            >
+              {currentModule === "overview" && (
+                <DashboardOverview
+                  candidate={currentData.candidate}
+                  territories={currentData.territories}
+                  polls={currentData.polls}
+                  socialStats={currentData.socialStats}
+                  alerts={currentData.alerts}
+                  onNavigate={setCurrentModule}
+                  onOpenAlertAction={handleOpenAlertAction}
+                />
+              )}
 
-          {currentModule === "polls" && (
-            <PredictivePolls
-              polls={currentData.polls}
-              candidate={currentData.candidate}
-              competitors={currentData.competitors}
-            />
-          )}
+              {currentModule === "volunteers_push" && (
+                <VolunteersDashboard
+                  volunteers={volunteers}
+                  onAddVolunteer={handleAddVolunteer}
+                  pushNotifications={pushNotifications}
+                  onSendPushNotification={handleSendPushNotification}
+                  candidateName={currentData.candidate.ballotName}
+                />
+              )}
 
-          {currentModule === "hexmap" && (
-            <SpatialHexMap
-              territories={currentData.territories}
-              candidate={currentData.candidate}
-              onNavigateToAIWithZone={handleNavigateToAIWithZone}
-            />
-          )}
+              {currentModule === "polls" && (
+                <PredictivePolls
+                  polls={currentData.polls}
+                  candidate={currentData.candidate}
+                  competitors={currentData.competitors}
+                />
+              )}
 
-          {currentModule === "social" && (
-            <SocialMonitoring
-              socialStats={currentData.socialStats}
-              candidate={currentData.candidate}
-              onTriggerCrisisAI={handleTriggerCrisisAI}
-            />
-          )}
+              {currentModule === "hexmap" && (
+                <SpatialHexMap
+                  territories={currentData.territories}
+                  candidate={currentData.candidate}
+                  onNavigateToAIWithZone={handleNavigateToAIWithZone}
+                />
+              )}
 
-          {currentModule === "ai_strategy" && (
-            <AiStrategyGenerator
-              candidate={currentData.candidate}
-              initialTopic={aiInitialState.topic}
-              initialLocation={aiInitialState.location}
-              initialFormat={aiInitialState.format}
-              initialBrief={aiInitialState.brief}
-            />
-          )}
+              {currentModule === "social" && (
+                <SocialMonitoring
+                  socialStats={currentData.socialStats}
+                  candidate={currentData.candidate}
+                  onTriggerCrisisAI={handleTriggerCrisisAI}
+                />
+              )}
 
-          {currentModule === "competitors" && (
-            <CompetitorComparison
-              candidate={currentData.candidate}
-              competitors={currentData.competitors}
-              onTriggerDebateStrategy={handleTriggerDebateStrategy}
-            />
-          )}
+              {currentModule === "ai_strategy" && (
+                <AiStrategyGenerator
+                  candidate={currentData.candidate}
+                  initialTopic={aiInitialState.topic}
+                  initialLocation={aiInitialState.location}
+                  initialFormat={aiInitialState.format}
+                  initialBrief={aiInitialState.brief}
+                />
+              )}
 
-          {currentModule === "themes" && (
-            <SocietalThemes
-              themes={currentData.themes}
-              candidate={currentData.candidate}
-              onGenerateThemeProposal={handleGenerateThemeProposal}
-            />
-          )}
+              {currentModule === "events_calendar" && (
+                <CampaignCalendar
+                  events={campaignEvents}
+                  onAddEvent={handleAddCampaignEvent}
+                  onUpdateEventStatus={handleUpdateEventStatus}
+                  onDeleteEvent={handleDeleteEvent}
+                  currentSphere={currentSphere}
+                  candidateName={currentData.candidate.ballotName}
+                />
+              )}
 
-          {currentModule === "historical" && (
-            <HistoricalData
-              candidate={currentData.candidate}
-              historicalElections={currentData.historicalElections}
-              demographics={currentData.demographics}
-            />
-          )}
+              {currentModule === "scenario_simulator" && (
+                <ProposalScenarioSimulator
+                  proposals={proposalScenarios}
+                  onSaveProposal={handleSaveProposalScenario}
+                  candidate={currentData.candidate}
+                  currentSphere={currentSphere}
+                />
+              )}
 
-          {currentModule === "finances" && (
-            <CampaignFinances
-              finances={currentData.finances}
-              candidate={currentData.candidate}
-            />
-          )}
+              {currentModule === "multi_candidates" && (
+                <MultiCandidateManager
+                  candidates={candidatesList}
+                  activeCandidateId={activeCandidateId}
+                  onSelectActiveCandidate={handleSelectActiveCandidate}
+                  onAddNewCandidate={handleAddNewCandidate}
+                  onNavigateToModule={(mod) => setCurrentModule(mod as NavModule)}
+                />
+              )}
 
-          {currentModule === "quotient_sim" && (
-            <ElectoralQuotientSim candidate={currentData.candidate} />
-          )}
+              {currentModule === "competitors" && (
+                <CompetitorComparison
+                  candidate={currentData.candidate}
+                  competitors={currentData.competitors}
+                  onTriggerDebateStrategy={handleTriggerDebateStrategy}
+                />
+              )}
 
-          {currentModule === "tse_data" && (
-            <TseIntegrationCenter
-              candidate={currentData.candidate}
-              currentSphere={currentSphere}
-              onNavigateToModule={(mod) => setCurrentModule(mod as NavModule)}
-            />
-          )}
+              {currentModule === "themes" && (
+                <SocietalThemes
+                  themes={currentData.themes}
+                  candidate={currentData.candidate}
+                  onGenerateThemeProposal={handleGenerateThemeProposal}
+                />
+              )}
+
+              {currentModule === "historical" && (
+                <HistoricalData
+                  candidate={currentData.candidate}
+                  historicalElections={currentData.historicalElections}
+                  demographics={currentData.demographics}
+                />
+              )}
+
+              {currentModule === "finances" && (
+                <CampaignFinances
+                  finances={currentData.finances}
+                  candidate={currentData.candidate}
+                />
+              )}
+
+              {currentModule === "quotient_sim" && (
+                <ElectoralQuotientSim candidate={currentData.candidate} />
+              )}
+
+              {currentModule === "tse_data" && (
+                <TseIntegrationCenter
+                  candidate={currentData.candidate}
+                  currentSphere={currentSphere}
+                  onNavigateToModule={(mod) => setCurrentModule(mod as NavModule)}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 

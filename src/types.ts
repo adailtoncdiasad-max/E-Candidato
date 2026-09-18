@@ -135,3 +135,151 @@ export interface CriticalAlert {
   actionLabel?: string;
   targetModule?: string;
 }
+
+// Campaign Events & Calendar Types
+export type CampaignEventType =
+  | "Comício"
+  | "Carreata"
+  | "Caminhada"
+  | "Sabatina / Debate"
+  | "Entrevista / Coletiva"
+  | "Reunião com Lideranças"
+  | "Gravação HGPE (Rádio/TV)"
+  | "Plenária Temática"
+  | "Mutirão de Panfletagem"
+  | "Ato com Apoiadores";
+
+export type EventStatus = "Confirmado" | "Pendente" | "Realizado" | "Cancelado";
+export type EventPriority = "Alta" | "Média" | "Estratégica";
+
+export interface CampaignEvent {
+  id: string;
+  title: string;
+  type: CampaignEventType;
+  date: string; // "YYYY-MM-DD"
+  time: string; // "HH:MM"
+  location: string;
+  zoneOrNeighborhood?: string;
+  ufOrCity?: string;
+  candidateId: string;
+  candidateName: string;
+  sphere: ElectoralSphere;
+  status: EventStatus;
+  priority: EventPriority;
+  estimatedAudience: number;
+  description: string;
+  talkingPoints: string[];
+  logistics: {
+    soundStageRequired: boolean;
+    securityLevel: "Padrão" | "Reforçada" | "VIP / Máxima";
+    liveStreaming: boolean;
+    tseComplianceChecked: boolean;
+  };
+}
+
+// Unreleased Proposal & Unlaunched Themes Simulation Types
+export interface ProposalDemographicImpact {
+  segment: string; // e.g. "Jovens (16-24)", "Mulheres Chefes de Família", "Evangélicos", "Classes D/E", "Classe Média (B/C)", "Aposentados / 60+", "Trabalhadores Informais / Aplicativos", "Setor Produtivo / Comércio"
+  favorabilityPct: number; // 0 to 100
+  rejectionPct: number; // 0 to 100
+  neutralPct: number; // 0 to 100
+  keyDriver: string;
+}
+
+export interface ProposalSimulationRecord {
+  id: string;
+  title: string;
+  themeAxis: string; // e.g. "Segurança Pública", "Saúde & Filas SUS", "Emprego & Renda", "Mobilidade Urbana", "Educação Básica", "Meio Ambiente & Clima", "Reforma Tributária / Impostos", "Juventude & Empreendedorismo", "Habitação Popular"
+  detailedProposal: string;
+  framingTone: "Propositivo" | "Ruptura / Firme" | "Técnico / Responsável" | "Popular / Emocional" | "Protecionista / Social";
+  targetAudience: string;
+  targetRegion: string;
+  candidateId: string;
+  candidateName: string;
+  sphere: ElectoralSphere;
+  createdAt: string;
+  metrics: {
+    overallAcceptancePct: number; // e.g. 68%
+    netVoteGainEstPct: number; // e.g. +2.8%
+    backfireRiskPct: number; // e.g. 14%
+    undecidedConversionPct: number; // e.g. 35%
+    socialBuzzScore: number; // 0 to 100
+  };
+  demographics: ProposalDemographicImpact[];
+  swot: {
+    strengths: string[];
+    vulnerabilities: string[];
+    oppositionExpectedAttacks: string[];
+    recommendedDefense: string[];
+    strategicRefinements: string[];
+  };
+  aiAnalysisText?: string;
+}
+
+// Volunteer & Militância Management Types
+export type VolunteerRole =
+  | "Líder de Zona"
+  | "Militante Digital"
+  | "Fiscal de Urna"
+  | "Mobilizador de Rua"
+  | "Apoio Jurídico"
+  | "Coordenação Jovem"
+  | "Comunicação & Carro de Som";
+
+export type VolunteerStatus = "Ativo" | "Em Treinamento" | "Disponível" | "Destaque" | "Pendente";
+
+export interface Volunteer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  zoneOrNeighborhood: string;
+  city: string;
+  role: VolunteerRole;
+  status: VolunteerStatus;
+  tasksCompleted: number;
+  points: number; // Gamificação
+  joinedAt: string;
+  skills: string[];
+  availability: "Integral" | "Finais de Semana" | "Noite" | "Dias Úteis";
+  badges: string[];
+  assignedCandidateId?: string;
+}
+
+// Push Notification Types
+export type PushTargetAudience =
+  | "Todos os Voluntários"
+  | "Líderes de Zona"
+  | "Fiscais de Urna"
+  | "Militantes Digitais"
+  | "Mobilizadores de Rua"
+  | "Equipe Jurídica";
+
+export type PushPriority = "Urgente / Relâmpago" | "Importante" | "Informativo";
+
+export type PushCategory =
+  | "Ato de Rua"
+  | "Contra-Fake News"
+  | "Roteiro de Debate"
+  | "Fiscalização Urna"
+  | "Mobilização Geral"
+  | "Material Digital";
+
+export interface PushNotificationRecord {
+  id: string;
+  title: string;
+  body: string;
+  targetAudience: PushTargetAudience;
+  priority: PushPriority;
+  category: PushCategory;
+  actionUrl?: string;
+  sentAt: string;
+  status: "Enviado" | "Agendado" | "Rascunho";
+  stats: {
+    sentCount: number;
+    openRatePct: number;
+    clickRatePct: number;
+  };
+}
+
+

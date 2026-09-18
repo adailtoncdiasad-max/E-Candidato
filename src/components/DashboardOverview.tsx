@@ -20,6 +20,10 @@ import {
   Send,
   MessageSquare,
   CheckCircle2,
+  Calendar,
+  FlaskConical,
+  UserCheck,
+  BellRing,
 } from "lucide-react";
 import { NavModule } from "./Sidebar";
 
@@ -228,6 +232,81 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="mt-2 text-[11px] text-slate-400">
             Monitorando Instagram, TikTok, X e WhatsApp
           </div>
+        </div>
+      </div>
+
+      {/* Quick Launchpad: Voluntários & Push, Eventos, Simulador de Propostas & Multi-Candidatos */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div
+          onClick={() => onNavigate("volunteers_push")}
+          className="cursor-pointer p-4 rounded-xl bg-gradient-to-br from-[#112233] to-[#16304A] border border-[#1E3A5F] hover:border-rose-500 transition-all shadow-md group flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center justify-center">
+              <BellRing className="w-5 h-5 text-rose-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white group-hover:text-rose-300 transition-colors">
+                Voluntários & Push
+              </h3>
+              <p className="text-[11px] text-slate-400">Militância de rua e alertas push</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-rose-400 group-hover:translate-x-0.5 transition-all" />
+        </div>
+
+        <div
+          onClick={() => onNavigate("events_calendar")}
+          className="cursor-pointer p-4 rounded-xl bg-gradient-to-br from-[#112233] to-[#16304A] border border-[#1E3A5F] hover:border-[#D4A537] transition-all shadow-md group flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white group-hover:text-[#D4A537] transition-colors">
+                Agenda & Calendário
+              </h3>
+              <p className="text-[11px] text-slate-400">Comícios, carreatas e sabatinas</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-[#D4A537] group-hover:translate-x-0.5 transition-all" />
+        </div>
+
+        <div
+          onClick={() => onNavigate("scenario_simulator")}
+          className="cursor-pointer p-4 rounded-xl bg-gradient-to-br from-[#112233] to-[#16304A] border border-[#1E3A5F] hover:border-[#D4A537] transition-all shadow-md group flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#D4A537]/20 text-[#D4A537] border border-[#D4A537]/40 flex items-center justify-center">
+              <FlaskConical className="w-5 h-5 text-[#D4A537]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white group-hover:text-[#D4A537] transition-colors">
+                Simulador Propostas
+              </h3>
+              <p className="text-[11px] text-slate-400">Testar impacto pré-lançamento</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-[#D4A537] group-hover:translate-x-0.5 transition-all" />
+        </div>
+
+        <div
+          onClick={() => onNavigate("multi_candidates")}
+          className="cursor-pointer p-4 rounded-xl bg-gradient-to-br from-[#112233] to-[#16304A] border border-[#1E3A5F] hover:border-[#D4A537] transition-all shadow-md group flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center justify-center">
+              <UserCheck className="w-5 h-5 text-cyan-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white group-hover:text-[#D4A537] transition-colors">
+                Multi-Candidatos
+              </h3>
+              <p className="text-[11px] text-slate-400">Comitê e alternância de esfera</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-[#D4A537] group-hover:translate-x-0.5 transition-all" />
         </div>
       </div>
 

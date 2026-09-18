@@ -15,6 +15,7 @@ import {
   Menu,
   Smartphone,
   Database,
+  Users,
 } from "lucide-react";
 import { CandidateProfile, ElectoralSphere, CriticalAlert } from "../types";
 import { PWAInstallButton } from "./PWAInstallButton";
@@ -31,6 +32,8 @@ interface NavbarProps {
   onOpenExportModal?: () => void;
   onToggleMobileMenu?: () => void;
   onOpenTseData?: () => void;
+  onOpenMultiCandidates?: () => void;
+  onOpenVolunteersPush?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -45,6 +48,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenExportModal,
   onToggleMobileMenu,
   onOpenTseData,
+  onOpenMultiCandidates,
+  onOpenVolunteersPush,
 }) => {
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
 
@@ -185,6 +190,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#D4A537] transition-colors ml-1" />
           </div>
+
+          {/* Multi-Candidates Quick Switcher Button */}
+          {onOpenMultiCandidates && (
+            <button
+              onClick={onOpenMultiCandidates}
+              id="header-multi-candidates-btn"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#112233] hover:bg-[#16304A] text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 text-xs font-bold transition-all shadow-sm"
+              title="Acessar Gestão de Múltiplos Candidatos & Campanhas"
+            >
+              <Users className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Multi-Candidatos</span>
+            </button>
+          )}
+
+          {/* Volunteers & Push Button */}
+          {onOpenVolunteersPush && (
+            <button
+              onClick={onOpenVolunteersPush}
+              id="header-volunteers-push-btn"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#112233] hover:bg-[#16304A] text-rose-300 hover:text-rose-200 border border-rose-500/40 text-xs font-bold transition-all shadow-sm"
+              title="Acessar Gestão de Voluntários & Disparos de Alertas Push"
+            >
+              <Bell className="w-3.5 h-3.5 text-rose-400" />
+              <span>Voluntários & Push</span>
+            </button>
+          )}
 
           {/* Android & HTML Versions Trigger Button */}
           {onOpenExportModal && (
