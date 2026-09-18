@@ -88,10 +88,39 @@ app.get("/api/health", (_req, res) => {
 
 // TSE Open Data API Proxy & Diagnostics
 const TSE_BASE_URL = "https://dadosabertos.tse.jus.br/api/3/action";
+const TSE_CANDIDATES_2026_URL = process.env.TSE_CANDIDATES_2026_URL;
+const TSE_POLLS_2026_URL = process.env.TSE_POLLS_2026_URL;
+const BRAZIL_UFS = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
+  "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+];
 const TSE_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   "Accept": "application/json",
 };
+
+async function loadConfiguredTseList<T>(url: string | undefined, key: "candidates" | "polls") {
+  if (!url) return null;
+  const payload = await fetchTseJson<unknown>(url);
+  const rows = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>)[key])
+      ? (payload as Record<string, unknown>)[key]
+      : null;
+
+  if (!rows) throw new Error(`Fonte TSE configurada não retornou a lista de ${key}.`);
+  return rows as T[];
+}
+
+function getLocalCoverage<T extends { uf?: string }>(rows: T[]) {
+  const availableUfs = [...new Set(rows.map((row) => row.uf).filter((uf): uf is string => Boolean(uf)))].sort();
+  return {
+    expectedUfs: BRAZIL_UFS,
+    availableUfs,
+    missingUfs: BRAZIL_UFS.filter((uf) => !availableUfs.includes(uf)),
+    complete: BRAZIL_UFS.every((uf) => availableUfs.includes(uf)),
+  };
+}
 
 app.get("/api/tse/status", async (_req, res) => {
   const start = Date.now();
@@ -106,8 +135,8 @@ app.get("/api/tse/status", async (_req, res) => {
       fetchTseJson<any>(`${TSE_BASE_URL}/organization_list`),
     ]);
 
-    const pkgData = await pkgRes.json();
-    const groupData = await groupRes.json();
+    const pkgData = pkgRes;
+    const groupData = groupRes;
     const orgData = await orgRes.json();
     const latency = Date.now() - start;
 
@@ -200,9 +229,26 @@ app.get("/api/tse/datasets", async (req, res) => {
 });
 
 // API TSE 2026: Lista Oficial de Candidatos Eleições 2026
-app.get("/api/tse/candidates-2026", (req, res) => {
+app.get("/api/tse/candidates-2026", async (req, res) => {
   const { sphere, role, party, q, uf } = req.query;
+  const requestedOffset = Number.parseInt(String(req.query.offset || "0"), 10);
+  const requestedLimit = Number.parseInt(String(req.query.limit || "100"), 10);
+  const offset = Math.max(Number.isFinite(requestedOffset) ? requestedOffset : 0, 0);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 100, 1), 500);
   let list = [...TSE_CANDIDATES_2026];
+  let source = "local-snapshot";
+  let stale = true;
+
+  try {
+    const liveList = await loadConfiguredTseList<typeof TSE_CANDIDATES_2026[number]>(TSE_CANDIDATES_2026_URL, "candidates");
+    if (liveList) {
+      list = liveList;
+      source = "live-configured";
+      stale = false;
+    }
+  } catch (error) {
+    console.warn("Falha ao carregar fonte configurada de candidatos TSE:", error);
+  }
 
   if (sphere && sphere !== "todos") {
     list = list.filter((c) => c.esfera.toLowerCase() === (sphere as string).toLowerCase());
@@ -234,19 +280,37 @@ app.get("/api/tse/candidates-2026", (req, res) => {
     );
   }
 
+  const total = list.length;
   res.json({
-    total: list.length,
+    total,
+    offset,
+    limit,
     electionYear: 2026,
-    source: "TSE / DivulgaCandContas (Dados Abertos)",
+    source,
+    stale,
+    coverage: getLocalCoverage(list),
     syncedAt: new Date().toISOString(),
-    candidates: list,
+    candidates: list.slice(offset, offset + limit),
   });
 });
 
 // API TSE 2026: Pesquisas Eleitorais Registradas no TSE (PesqEle)
-app.get("/api/tse/polls-2026", (req, res) => {
+app.get("/api/tse/polls-2026", async (req, res) => {
   const { sphere, institute, q } = req.query;
   let list = [...TSE_PESQELE_POLLS_2026];
+  let source = "local-snapshot";
+  let stale = true;
+
+  try {
+    const liveList = await loadConfiguredTseList<typeof TSE_PESQELE_POLLS_2026[number]>(TSE_POLLS_2026_URL, "polls");
+    if (liveList) {
+      list = liveList;
+      source = "live-configured";
+      stale = false;
+    }
+  } catch (error) {
+    console.warn("Falha ao carregar fonte configurada de pesquisas TSE:", error);
+  }
 
   if (sphere && sphere !== "todos") {
     list = list.filter((p) => p.esfera.toLowerCase() === (sphere as string).toLowerCase());
@@ -272,7 +336,8 @@ app.get("/api/tse/polls-2026", (req, res) => {
   res.json({
     total: list.length,
     electionYear: 2026,
-    source: "TSE / PesqEle - Sistema de Registro de Pesquisas Eleitorais",
+    source,
+    stale,
     syncedAt: new Date().toISOString(),
     polls: list,
   });
@@ -282,35 +347,51 @@ app.get("/api/tse/polls-2026", (req, res) => {
 app.post("/api/tse/sync-live", async (req, res) => {
   const start = Date.now();
   try {
-    // Ping TSE CKAN API to verify live state
-    const response = await fetch(`${TSE_BASE_URL}/package_list`, { headers: TSE_HEADERS });
-    const ckanData = await response.json().catch(() => ({ success: true, result: [] }));
+    const [ckanData, liveCandidates, livePolls] = await Promise.all([
+      fetchTseJson<any>(`${TSE_BASE_URL}/package_list`).catch((error) => {
+        console.warn("Catálogo CKAN TSE indisponível durante sincronização:", error);
+        return { result: [] };
+      }),
+      loadConfiguredTseList<typeof TSE_CANDIDATES_2026[number]>(TSE_CANDIDATES_2026_URL, "candidates").catch((error) => {
+        console.warn("Fonte live de candidatos TSE indisponível:", error);
+        return null;
+      }),
+      loadConfiguredTseList<typeof TSE_PESQELE_POLLS_2026[number]>(TSE_POLLS_2026_URL, "polls").catch((error) => {
+        console.warn("Fonte live de pesquisas TSE indisponível:", error);
+        return null;
+      }),
+    ]);
     const latency = Date.now() - start;
+    const synchronized = Boolean(liveCandidates || livePolls || ckanData.result?.length);
 
     res.json({
-      success: true,
-      message: "Sincronização com a base de dados abertos do TSE (Eleições 2026) concluída com sucesso!",
+      success: synchronized,
+      message: "Conectividade TSE verificada; listas 2026 atualizadas conforme fontes configuradas.",
       electionYear: 2026,
       timestamp: new Date().toISOString(),
       latencyMs: latency,
       stats: {
-        totalCandidates2026: TSE_CANDIDATES_2026.length,
-        totalPesqElePolls2026: TSE_PESQELE_POLLS_2026.length,
-        ckanDatasetsTotal: ckanData.result?.length || 182,
-        syncStatus: "100% OPERACIONAL - CONEXÃO CRIPTOGRAFADA HTTPS TSE",
+        totalCandidates2026: liveCandidates?.length ?? TSE_CANDIDATES_2026.length,
+        totalPesqElePolls2026: livePolls?.length ?? TSE_PESQELE_POLLS_2026.length,
+        ckanDatasetsTotal: ckanData.result?.length || 0,
+        candidatesSource: liveCandidates ? "live-configured" : "local-snapshot",
+        pollsSource: livePolls ? "live-configured" : "local-snapshot",
+        candidateCoverage: getLocalCoverage(liveCandidates ?? TSE_CANDIDATES_2026),
+        syncStatus: liveCandidates && livePolls ? "LIVE CONFIGURADO" : "SINCRONIZAÇÃO PARCIAL; SNAPSHOT LOCAL MANTIDO",
       },
     });
   } catch (err: any) {
     res.json({
-      success: true,
+      success: false,
       fallbackUsed: true,
-      message: "Sincronização executada com sucesso através do cache espelhado do TSE 2026.",
+      message: "Não foi possível sincronizar a fonte TSE; o snapshot local permanece disponível e está marcado como desatualizado.",
       electionYear: 2026,
       timestamp: new Date().toISOString(),
       stats: {
         totalCandidates2026: TSE_CANDIDATES_2026.length,
         totalPesqElePolls2026: TSE_PESQELE_POLLS_2026.length,
-        syncStatus: "STANDBY SEGURO (ESPELHO LOCAL ATUALIZADO)",
+        candidateCoverage: getLocalCoverage(TSE_CANDIDATES_2026),
+        syncStatus: "SNAPSHOT LOCAL; SINCRONIZAÇÃO NÃO CONFIRMADA",
       },
     });
   }

@@ -14,11 +14,13 @@ const MAX_DATASET_ROWS = 100;
 async function fetchTseJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TSE_REQUEST_TIMEOUT_MS);
+  const abortFromCaller = () => controller.abort();
+  signal?.addEventListener("abort", abortFromCaller, { once: true });
 
   try {
     const res = await fetch(url, {
       headers: DEFAULT_HEADERS,
-      signal: signal ?? controller.signal,
+      signal: controller.signal,
     });
 
     if (!res.ok) {
@@ -28,6 +30,7 @@ async function fetchTseJson<T>(url: string, signal?: AbortSignal): Promise<T> {
     return (await res.json()) as T;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
@@ -152,15 +155,15 @@ export async function getTseOverview() {
       fetchTseJson<any>(`${TSE_BASE_URL}/group_list`),
     ]);
 
-    const pkgData = await pkgRes.json();
-    const groupData = await groupRes.json();
+    const pkgData = pkgRes;
+    const groupData = groupRes;
     const latency = Date.now() - start;
 
     return {
       online: pkgData.success === true,
       endpoint: TSE_BASE_URL,
-      datasetCount: pkgData.result?.length || 182,
-      groupCount: groupData.result?.length || 12,
+      datasetCount: pkgData.result?.length || 0,
+      groupCount: groupData.result?.length || 0,
       orgCount: 7,
       latencyMs: latency,
       lastChecked: new Date().toISOString(),
@@ -172,8 +175,8 @@ export async function getTseOverview() {
     return {
       online: false,
       endpoint: TSE_BASE_URL,
-      datasetCount: 182,
-      groupCount: 12,
+      datasetCount: 0,
+      groupCount: 0,
       orgCount: 7,
       latencyMs: Date.now() - start,
       lastChecked: new Date().toISOString(),
@@ -347,7 +350,7 @@ function getFallbackDatasets(filter = "") {
       id: "candidatos-2026",
       name: "candidatos-2026",
       title: "Candidatos - 2026 (Eleições Gerais: Presidente, Governador, Senador)",
-      notes: "Base oficial prévia e consolidada de registros de candidaturas para as Eleições Gerais 2026 com bens e limites de gastos.",
+      notes: "Snapshot local parcial para demonstração. A lista nacional atual deve ser carregada pela fonte oficial configurada no servidor.",
       metadata_modified: "2026-09-18T12:00:00.000Z",
       organization: { id: "tse-sjd", name: "tse-sjd", title: "TSE/SJD (Secretaria Judiciária)" },
       groups: [{ id: "candidatos", name: "candidatos", title: "Candidatos" }],
@@ -370,7 +373,7 @@ function getFallbackDatasets(filter = "") {
       id: "pesquisas-eleitorais-2026",
       name: "pesquisas-eleitorais-2026",
       title: "Pesquisas Eleitorais Registradas (PesqEle) - 2026",
-      notes: "Catálogo completo de pesquisas eleitorais registradas e autorizadas no TSE para as Eleições de 2026 com CONRE e metodologia.",
+      notes: "Snapshot local parcial para demonstração. O catálogo nacional PesqEle deve ser carregado pela fonte oficial configurada no servidor.",
       metadata_modified: "2026-09-18T14:30:00.000Z",
       organization: { id: "tse-agel", name: "tse-agel", title: "TSE/AGEL (Assessoria de Gestão Eleitoral)" },
       groups: [{ id: "pesquisas-eleitorais", name: "pesquisas-eleitorais", title: "Pesquisas Eleitorais" }],
@@ -403,6 +406,8 @@ export async function fetchTseCandidates2026(params: {
   party?: string;
   q?: string;
   uf?: string;
+  offset?: number;
+  limit?: number;
 } = {}) {
   try {
     const searchParams = new URLSearchParams();
@@ -411,6 +416,8 @@ export async function fetchTseCandidates2026(params: {
     if (params.party) searchParams.set("party", params.party);
     if (params.q) searchParams.set("q", params.q);
     if (params.uf) searchParams.set("uf", params.uf);
+    if (params.offset !== undefined) searchParams.set("offset", String(params.offset));
+    if (params.limit !== undefined) searchParams.set("limit", String(params.limit));
 
     const res = await fetch(`/api/tse/candidates-2026?${searchParams.toString()}`);
     if (res.ok) {
@@ -423,7 +430,8 @@ export async function fetchTseCandidates2026(params: {
   return {
     total: TSE_CANDIDATES_2026.length,
     electionYear: 2026,
-    source: "TSE / DivulgaCandContas (Fallback Local)",
+    source: "local-snapshot",
+    stale: true,
     syncedAt: new Date().toISOString(),
     candidates: TSE_CANDIDATES_2026,
   };
@@ -451,7 +459,8 @@ export async function fetchTsePolls2026(params: {
   return {
     total: TSE_PESQELE_POLLS_2026.length,
     electionYear: 2026,
-    source: "TSE / PesqEle (Fallback Local)",
+    source: "local-snapshot",
+    stale: true,
     syncedAt: new Date().toISOString(),
     polls: TSE_PESQELE_POLLS_2026,
   };
@@ -467,14 +476,14 @@ export async function triggerTseLiveSync() {
     console.warn("Sync failed, using offline fallback sync response", err);
   }
   return {
-    success: true,
+    success: false,
     message: "Sincronização com a base do TSE executada com sucesso.",
     electionYear: 2026,
     timestamp: new Date().toISOString(),
     stats: {
       totalCandidates2026: 12,
       totalPesqElePolls2026: 5,
-      syncStatus: "100% CONCLUÍDO (ESPELHO OFICIAL TSE)",
+      syncStatus: "SNAPSHOT LOCAL; SINCRONIZAÇÃO NÃO CONFIRMADA",
     },
   };
 }

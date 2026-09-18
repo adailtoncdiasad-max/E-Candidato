@@ -23,20 +23,27 @@ import {
   TSE_ORGANIZATIONS,
   getTseOverview,
   searchTseDatasets,
+  fetchTseCandidates2026,
+  fetchTsePolls2026,
 } from "../services/tseService";
 import { TSEConnectionStatus, TSEDataset, TSEIngestionPipelineStatus } from "../types/tse";
+import { TSECandidateOfficial2026, TSEPesqElePoll2026 } from "../data/tse2026Data";
+import { TseCandidatesTab } from "./tse/TseCandidatesTab";
+import { TsePollsTab } from "./tse/TsePollsTab";
 import { CandidateProfile, SphereType } from "../types";
 
 interface TseIntegrationCenterProps {
   candidate: CandidateProfile;
   currentSphere: SphereType;
   onNavigateToModule?: (module: string) => void;
+  onSelectCandidate?: (candidate: TSECandidateOfficial2026) => void;
 }
 
 export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
   candidate,
   currentSphere,
   onNavigateToModule,
+  onSelectCandidate,
 }) => {
   const [connection, setConnection] = useState<TSEConnectionStatus>({
     online: true,
@@ -53,7 +60,9 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [datasets, setDatasets] = useState<TSEDataset[]>([]);
   const [loadingDatasets, setLoadingDatasets] = useState(false);
-  const [activeTab, setActiveTab] = useState<"catalog" | "architecture" | "pipeline">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "candidates" | "polls" | "architecture" | "pipeline">("catalog");
+  const [candidates2026, setCandidates2026] = useState<TSECandidateOfficial2026[]>([]);
+  const [polls2026, setPolls2026] = useState<TSEPesqElePoll2026[]>([]);
   const datasetsRequestId = useRef(0);
 
   // Ingestion Pipelines simulation matching architecture
@@ -155,6 +164,12 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
   useEffect(() => {
     checkStatus();
     fetchDatasets("", "todos");
+    fetchTseCandidates2026({ limit: 500 }).then((result) => {
+      if (Array.isArray(result.candidates)) setCandidates2026(result.candidates);
+    });
+    fetchTsePolls2026().then((result) => {
+      if (Array.isArray(result.polls)) setPolls2026(result.polls);
+    });
   }, []);
 
   const handleGroupSelect = (grp: string) => {
@@ -208,7 +223,7 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
                 )}
               </div>
               <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                Latência: <span className="text-[#D4A537] font-bold">{connection.latencyMs}ms</span> | Endpoints: <span className="text-white">/api/3/action</span>
+                Latência: <span className="text-[#D4A537] font-bold">{connection.latencyMs}ms</span> | Fonte: <span className="text-white">{connection.source === "live" ? "live" : "indisponível"}</span>
               </div>
             </div>
             <button
@@ -271,6 +286,30 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab("candidates")}
+          className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+            activeTab === "candidates"
+              ? "bg-[#D4A537] text-[#0B1B2B] shadow-md shadow-[#D4A537]/20"
+              : "text-slate-300 hover:text-white hover:bg-[#16304A]"
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Candidatos 2026 / 27 UFs</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("polls")}
+          className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+            activeTab === "polls"
+              ? "bg-[#D4A537] text-[#0B1B2B] shadow-md shadow-[#D4A537]/20"
+              : "text-slate-300 hover:text-white hover:bg-[#16304A]"
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          <span>PesqEle 2026</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("architecture")}
           className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
             activeTab === "architecture"
@@ -294,6 +333,12 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
           <span>Pipeline de Ingestão (Airflow & Pandas)</span>
         </button>
       </div>
+
+      {activeTab === "candidates" && (
+        <TseCandidatesTab candidates={candidates2026} onSelectCandidate={onSelectCandidate} />
+      )}
+
+      {activeTab === "polls" && <TsePollsTab polls={polls2026} />}
 
       {/* TAB 1: DATASET SEARCH & EXPLORER */}
       {activeTab === "catalog" && (
@@ -517,13 +562,13 @@ export const TseIntegrationCenter: React.FC<TseIntegrationCenterProps> = ({
                   Pipeline Automatizado de Ingestão (Airflow & Pandas)
                 </h3>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Conforme recomendação de engenharia de dados da Fase 1, o pipeline realiza a extração periódica dos CSVs e ZIPs da API do TSE.
+                  O painel exibe o estado informado pela sincronização; os registros só são considerados atuais quando uma fonte oficial nacional está configurada.
                 </p>
               </div>
 
               <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" />
-                5 Pipelines Operacionais
+                5 Pipelines Monitorados
               </span>
             </div>
 

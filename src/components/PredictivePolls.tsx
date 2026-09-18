@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PollRecord, CandidateProfile, CompetitorData } from "../types";
 import {
   TrendingUp,
@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { TSE_PESQELE_POLLS_2026, TSEPesqElePoll2026 } from "../data/tse2026Data";
+import { fetchTsePolls2026 } from "../services/tseService";
 
 interface PredictivePollsProps {
   polls: PollRecord[];
@@ -31,7 +32,23 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
   const [selectedTse2026Poll, setSelectedTse2026Poll] = useState<TSEPesqElePoll2026 | null>(
     TSE_PESQELE_POLLS_2026[0]
   );
+  const [tsePolls, setTsePolls] = useState<TSEPesqElePoll2026[]>(TSE_PESQELE_POLLS_2026);
+  const [tsePollsSource, setTsePollsSource] = useState<"live-configured" | "local-snapshot">("local-snapshot");
   const [useTse2026Active, setUseTse2026Active] = useState<boolean>(true);
+
+  useEffect(() => {
+    let active = true;
+    fetchTsePolls2026().then((result) => {
+      if (!active || !Array.isArray(result.polls) || result.polls.length === 0) return;
+      setTsePolls(result.polls);
+      setTsePollsSource(result.source === "live-configured" ? "live-configured" : "local-snapshot");
+      setSelectedTse2026Poll(result.polls[0]);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Monte Carlo 2nd round simulation parameters
   const [opponentBMigration, setOpponentBMigration] = useState<number>(45); // % of B's votes going to our candidate
@@ -167,13 +184,15 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
                   : "bg-[#16304A] text-slate-300 border border-[#1E3A5F]"
               }`}
             >
-              {useTse2026Active ? "TSE PesqEle 2026 (Ativo)" : "Tracking Interno"}
+              {useTse2026Active
+                ? `TSE PesqEle 2026 (${tsePollsSource === "live-configured" ? "Live" : "Snapshot"})`
+                : "Tracking Interno"}
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
-          {TSE_PESQELE_POLLS_2026.map((tsePoll) => {
+          {tsePolls.map((tsePoll) => {
             const isSelected = useTse2026Active && selectedTse2026Poll?.id === tsePoll.id;
             return (
               <button

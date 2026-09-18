@@ -1,5 +1,5 @@
-// Base Oficial do Tribunal Superior Eleitoral (TSE) - Eleições Gerais 2026
-// Dados estruturados conforme padrões DivulgaCandContas e PesqEle (CKAN API)
+// Snapshot local de demonstração para a interface das Eleições Gerais 2026.
+// Não representa a base nacional atual do TSE. A fonte live é configurada no servidor.
 
 export interface TSECandidateOfficial2026 {
   id: string;
@@ -82,7 +82,7 @@ export interface TSEPesqElePoll2026 {
 }
 
 // -------------------------------------------------------------------------
-// CANDIDATOS OFICIAIS ELEIÇÕES 2026 (TSE - DIVULGACAND)
+// EXEMPLOS DE CANDIDATOS PARA OFFLINE/FALLBACK (NÃO É A LISTA NACIONAL COMPLETA)
 // -------------------------------------------------------------------------
 export const TSE_CANDIDATES_2026: TSECandidateOfficial2026[] = [
   // ===================== FEDERAL: PRESIDÊNCIA DA REPÚBLICA =====================
@@ -614,7 +614,7 @@ export const TSE_CANDIDATES_2026: TSECandidateOfficial2026[] = [
 ];
 
 // -------------------------------------------------------------------------
-// PESQUISAS ELEITORAIS REGISTRADAS NO TSE (PESQELE 2026)
+// EXEMPLOS DE PESQUISAS PARA OFFLINE/FALLBACK (NÃO É O CATÁLOGO NACIONAL COMPLETO)
 // -------------------------------------------------------------------------
 export const TSE_PESQELE_POLLS_2026: TSEPesqElePoll2026[] = [
   {
