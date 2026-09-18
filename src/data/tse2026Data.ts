@@ -15,7 +15,7 @@ export interface TSECandidateOfficial2026 {
   esfera: "Federal" | "Estadual" | "Municipal";
   uf: string;
   municipio?: string;
-  situacaoRegistro: "Deferido" | "Aguardando Julgamento" | "Homologado em Convenção" | "Deferido com Recurso";
+  situacaoRegistro: "Deferido" | "Aguardando Julgamento" | "Homologado em Convenção" | "Deferido com Recurso" | "Não informado";
   bensDeclaradosTotal: number;
   limiteGastos1T: number;
   grauInstrucao: string;
@@ -23,7 +23,7 @@ export interface TSECandidateOfficial2026 {
   nacionalidade: string;
   municipioNascimento: string;
   dataNascimento: string;
-  genero: "Masculino" | "Feminino";
+  genero: "Masculino" | "Feminino" | "Não informado";
   corRaca: "Branca" | "Parda" | "Preta" | "Indígena" | "Amarela";
   fotoUrl: string;
   propostasPrincipais: string[];

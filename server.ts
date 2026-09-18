@@ -1,10 +1,11 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { TSE_CANDIDATES_2026, TSE_PESQELE_POLLS_2026 } from "./src/data/tse2026Data";
+import { TSE_CANDIDATES_2026, TSE_PESQELE_POLLS_2026, TSECandidateOfficial2026 } from "./src/data/tse2026Data";
 
 dotenv.config();
 
@@ -90,6 +91,7 @@ app.get("/api/health", (_req, res) => {
 const TSE_BASE_URL = "https://dadosabertos.tse.jus.br/api/3/action";
 const TSE_CANDIDATES_2026_URL = process.env.TSE_CANDIDATES_2026_URL;
 const TSE_POLLS_2026_URL = process.env.TSE_POLLS_2026_URL;
+const LOCAL_CANDIDATES_DIR = path.join(process.cwd(), "consulta_cand_2026");
 const BRAZIL_UFS = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
@@ -98,6 +100,122 @@ const TSE_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   "Accept": "application/json",
 };
+
+let localCandidatesCache: TSECandidateOfficial2026[] | null = null;
+
+function parseSemicolonCsv(content: string): Record<string, string>[] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const character = content[index];
+    const nextCharacter = content[index + 1];
+
+    if (character === '"' && quoted && nextCharacter === '"') {
+      field += '"';
+      index += 1;
+    } else if (character === '"') {
+      quoted = !quoted;
+    } else if (character === ";" && !quoted) {
+      row.push(field);
+      field = "";
+    } else if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && nextCharacter === "\n") index += 1;
+      row.push(field);
+      if (row.some((value) => value.length > 0)) rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += character;
+    }
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  const headers = rows.shift()?.map((header) => header.replace(/^\uFEFF/, "")) || [];
+  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ""])));
+}
+
+function cleanTseValue(value: string | undefined): string {
+  return value && !value.startsWith("#") ? value.trim() : "";
+}
+
+function mapCandidateCargo(code: string): TSECandidateOfficial2026["cargo"] {
+  switch (code) {
+    case "1": return "Presidente";
+    case "3": return "Governador(a)";
+    case "5": return "Senador(a)";
+    case "6": return "Deputado(a) Federal";
+    case "7":
+    case "8": return "Deputado(a) Estadual";
+    default: return "Deputado(a) Estadual";
+  }
+}
+
+function mapCandidateSphere(abrangencia: string, cargo: TSECandidateOfficial2026["cargo"]): TSECandidateOfficial2026["esfera"] {
+  if (cargo === "Presidente" || cargo === "Senador(a)" || cargo === "Deputado(a) Federal") return "Federal";
+  if (abrangencia.toUpperCase() === "MUNICIPAL") return "Municipal";
+  return "Estadual";
+}
+
+function loadLocalCandidates2026(): TSECandidateOfficial2026[] {
+  if (localCandidatesCache) return localCandidatesCache;
+  if (!fs.existsSync(LOCAL_CANDIDATES_DIR)) return [];
+
+  const files = fs.readdirSync(LOCAL_CANDIDATES_DIR)
+    .filter((fileName) => /^consulta_cand_2026_(?!BR(?:ASIL)?\.csv$)[A-Z]{2}\.csv$/i.test(fileName))
+    .sort();
+  const candidates: TSECandidateOfficial2026[] = [];
+
+  for (const fileName of files) {
+    const content = fs.readFileSync(path.join(LOCAL_CANDIDATES_DIR, fileName), "latin1");
+    for (const row of parseSemicolonCsv(content)) {
+      const cargo = mapCandidateCargo(row.CD_CARGO);
+      const uf = cleanTseValue(row.SG_UF).toUpperCase();
+      if (!uf || row.ANO_ELEICAO !== "2026") continue;
+
+      candidates.push({
+        id: `tse-${row.SQ_CANDIDATO || `${uf}-${row.NR_CANDIDATO}`}`,
+        sequencialTSE: cleanTseValue(row.SQ_CANDIDATO),
+        numero: cleanTseValue(row.NR_CANDIDATO),
+        nomeUrna: cleanTseValue(row.NM_URNA_CANDIDATO),
+        nomeCompleto: cleanTseValue(row.NM_CANDIDATO),
+        siglaPartido: cleanTseValue(row.SG_PARTIDO),
+        nomePartido: cleanTseValue(row.NM_PARTIDO),
+        nomeColigacao: cleanTseValue(row.NM_COLIGACAO),
+        federacao: cleanTseValue(row.NM_FEDERACAO),
+        cargo,
+        esfera: mapCandidateSphere(row.TP_ABRANGENCIA, cargo),
+        uf,
+        situacaoRegistro: ["Deferido", "Aguardando Julgamento", "Homologado em Convenção", "Deferido com Recurso"].includes(cleanTseValue(row.DS_SITUACAO_CANDIDATURA))
+          ? cleanTseValue(row.DS_SITUACAO_CANDIDATURA) as TSECandidateOfficial2026["situacaoRegistro"]
+          : "Não informado",
+        bensDeclaradosTotal: 0,
+        limiteGastos1T: 0,
+        grauInstrucao: cleanTseValue(row.DS_GRAU_INSTRUCAO),
+        ocupacao: cleanTseValue(row.DS_OCUPACAO),
+        nacionalidade: "Brasileira",
+        municipioNascimento: cleanTseValue(row.SG_UF_NASCIMENTO),
+        dataNascimento: cleanTseValue(row.DT_NASCIMENTO),
+        genero: cleanTseValue(row.DS_GENERO) === "FEMININO" ? "Feminino" : cleanTseValue(row.DS_GENERO) === "MASCULINO" ? "Masculino" : "Não informado",
+        corRaca: cleanTseValue(row.DS_COR_RACA) === "PARDA" ? "Parda" : cleanTseValue(row.DS_COR_RACA) === "PRETA" ? "Preta" : cleanTseValue(row.DS_COR_RACA) === "INDÍGENA" ? "Indígena" : cleanTseValue(row.DS_COR_RACA) === "AMARELA" ? "Amarela" : "Branca",
+        fotoUrl: "",
+        propostasPrincipais: [],
+        votosEstimadosProjecao: 0,
+        totalEleitoradoApto: 0,
+        dataRegistroTSE: cleanTseValue(row.DT_GERACAO),
+      });
+    }
+  }
+
+  localCandidatesCache = candidates;
+  return candidates;
+}
 
 async function loadConfiguredTseList<T>(url: string | undefined, key: "candidates" | "polls") {
   if (!url) return null;
@@ -137,7 +255,7 @@ app.get("/api/tse/status", async (_req, res) => {
 
     const pkgData = pkgRes;
     const groupData = groupRes;
-    const orgData = await orgRes.json();
+    const orgData = orgRes;
     const latency = Date.now() - start;
 
     const status = {
@@ -235,9 +353,10 @@ app.get("/api/tse/candidates-2026", async (req, res) => {
   const requestedLimit = Number.parseInt(String(req.query.limit || "100"), 10);
   const offset = Math.max(Number.isFinite(requestedOffset) ? requestedOffset : 0, 0);
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 100, 1), 500);
-  let list = [...TSE_CANDIDATES_2026];
-  let source = "local-snapshot";
-  let stale = true;
+  const localList = loadLocalCandidates2026();
+  let list = localList.length > 0 ? localList : [...TSE_CANDIDATES_2026];
+  let source = localList.length > 0 ? "local-csv" : "local-snapshot";
+  let stale = localList.length === 0;
 
   try {
     const liveList = await loadConfiguredTseList<typeof TSE_CANDIDATES_2026[number]>(TSE_CANDIDATES_2026_URL, "candidates");
@@ -371,7 +490,7 @@ app.post("/api/tse/sync-live", async (req, res) => {
       timestamp: new Date().toISOString(),
       latencyMs: latency,
       stats: {
-        totalCandidates2026: liveCandidates?.length ?? TSE_CANDIDATES_2026.length,
+        totalCandidates2026: liveCandidates?.length ?? loadLocalCandidates2026().length || TSE_CANDIDATES_2026.length,
         totalPesqElePolls2026: livePolls?.length ?? TSE_PESQELE_POLLS_2026.length,
         ckanDatasetsTotal: ckanData.result?.length || 0,
         candidatesSource: liveCandidates ? "live-configured" : "local-snapshot",
@@ -388,7 +507,7 @@ app.post("/api/tse/sync-live", async (req, res) => {
       electionYear: 2026,
       timestamp: new Date().toISOString(),
       stats: {
-        totalCandidates2026: TSE_CANDIDATES_2026.length,
+        totalCandidates2026: loadLocalCandidates2026().length || TSE_CANDIDATES_2026.length,
         totalPesqElePolls2026: TSE_PESQELE_POLLS_2026.length,
         candidateCoverage: getLocalCoverage(TSE_CANDIDATES_2026),
         syncStatus: "SNAPSHOT LOCAL; SINCRONIZAÇÃO NÃO CONFIRMADA",
@@ -399,7 +518,7 @@ app.post("/api/tse/sync-live", async (req, res) => {
 
 // API TSE 2026: Resumo Estatístico Geral
 app.get("/api/tse/overview-2026", (_req, res) => {
-  const totalCandidates = TSE_CANDIDATES_2026.length;
+  const totalCandidates = loadLocalCandidates2026().length || TSE_CANDIDATES_2026.length;
   const totalPolls = TSE_PESQELE_POLLS_2026.length;
   const totalDeclaredAssets = TSE_CANDIDATES_2026.reduce((acc, c) => acc + c.bensDeclaradosTotal, 0);
   const totalSampleInterviewed = TSE_PESQELE_POLLS_2026.reduce((acc, p) => acc + p.quantidadeEntrevistados, 0);
