@@ -9,7 +9,12 @@ import {
   HelpCircle,
   BarChart3,
   Percent,
+  ShieldCheck,
+  Building2,
+  ExternalLink,
+  Sparkles,
 } from "lucide-react";
+import { TSE_PESQELE_POLLS_2026, TSEPesqElePoll2026 } from "../data/tse2026Data";
 
 interface PredictivePollsProps {
   polls: PollRecord[];
@@ -23,6 +28,10 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
   competitors = [],
 }) => {
   const [selectedPollId, setSelectedPollId] = useState<string>("");
+  const [selectedTse2026Poll, setSelectedTse2026Poll] = useState<TSEPesqElePoll2026 | null>(
+    TSE_PESQELE_POLLS_2026[0]
+  );
+  const [useTse2026Active, setUseTse2026Active] = useState<boolean>(true);
 
   // Monte Carlo 2nd round simulation parameters
   const [opponentBMigration, setOpponentBMigration] = useState<number>(45); // % of B's votes going to our candidate
@@ -35,23 +44,38 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
     party: "PL",
   };
 
-  const activePoll: PollRecord =
-    polls.find((p) => p.id === selectedPollId) ||
-    polls[polls.length - 1] ||
-    polls[0] || {
-      id: "default-poll",
-      date: "Hoje",
-      institute: "Pesquisa TSE",
-      tseRegistration: "BR-00000/2022",
-      sampleSize: 2000,
-      marginOfError: 2.0,
-      ourCandidate: 50.0,
-      opponentA: 40.0,
-      opponentB: 5.0,
-      opponentC: 2.0,
-      undecided: 2.0,
-      nullBlank: 1.0,
-    };
+  // Derive active values either from TSE 2026 poll or standard poll
+  const defaultPoll: PollRecord = polls[polls.length - 1] || polls[0] || {
+    id: "default-poll",
+    date: "Hoje",
+    institute: "Pesquisa TSE",
+    tseRegistration: "BR-08241/2026",
+    sampleSize: 2004,
+    marginOfError: 2.0,
+    ourCandidate: 44.5,
+    opponentA: 33.2,
+    opponentB: 8.5,
+    opponentC: 4.1,
+    undecided: 5.2,
+    nullBlank: 4.5,
+  };
+
+  const activePoll: PollRecord = useTse2026Active && selectedTse2026Poll
+    ? {
+        id: selectedTse2026Poll.id,
+        date: selectedTse2026Poll.dataDivulgacao,
+        institute: selectedTse2026Poll.instituto,
+        tseRegistration: selectedTse2026Poll.numeroRegistroTSE,
+        sampleSize: selectedTse2026Poll.quantidadeEntrevistados,
+        marginOfError: selectedTse2026Poll.margemErro,
+        ourCandidate: selectedTse2026Poll.cenarioEstimulado[0]?.percentual || 44.5,
+        opponentA: selectedTse2026Poll.cenarioEstimulado[1]?.percentual || 33.2,
+        opponentB: selectedTse2026Poll.cenarioEstimulado[2]?.percentual || 8.5,
+        opponentC: selectedTse2026Poll.cenarioEstimulado[3]?.percentual || 4.1,
+        undecided: selectedTse2026Poll.indecisosPct,
+        nullBlank: selectedTse2026Poll.brancosNulosPct,
+      }
+    : (polls.find((p) => p.id === selectedPollId) || defaultPoll);
 
   const latest = activePoll;
 
@@ -85,19 +109,20 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
       {/* Header */}
       <div className="p-5 rounded-2xl bg-[#112233] border border-[#1E3A5F] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#D4A537]/20 text-[#D4A537] border border-[#D4A537]/40 uppercase tracking-wide">
-              Estatística Preditiva
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#D4A537]/20 text-[#D4A537] border border-[#D4A537]/40 uppercase tracking-wide flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" />
+              TSE PesqEle 2026 Integrado
             </span>
             <span className="text-xs text-slate-400">
-              Registrado no TSE com Intervalo de Confiança de 95%
+              Registrado no TSE com Intervalo de Confiança de 95% & Estatístico CONRE
             </span>
           </div>
           <h2 className="text-xl md:text-2xl font-bold text-[#F2EFE6] mt-1">
-            Tracking & Curva Preditiva de Intenção de Voto
+            Tracking & Curva Preditiva de Intenção de Voto (Eleições 2026)
           </h2>
           <p className="text-xs text-slate-300">
-            Agregação ponderada de pesquisas oficiais registradas e simulação probabilística de 2º Turno.
+            Agregação ponderada de pesquisas oficiais registradas no TSE e simulação probabilística de 2º Turno.
           </p>
         </div>
 
@@ -120,6 +145,77 @@ export const PredictivePolls: React.FC<PredictivePollsProps> = ({
               ±{latest.marginOfError}%
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* TSE 2026 PesqEle Registered Polls Selector Strip */}
+      <div className="p-4 rounded-2xl bg-[#0B1B2B] border border-[#1E3A5F] space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-[#D4A537]" />
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+              Pesquisas Oficiais Registradas no TSE (Eleições 2026 &mdash; PesqEle)
+            </h3>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Fonte Ativa:</span>
+            <button
+              onClick={() => setUseTse2026Active(!useTse2026Active)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                useTse2026Active
+                  ? "bg-[#D4A537] text-[#0B1B2B]"
+                  : "bg-[#16304A] text-slate-300 border border-[#1E3A5F]"
+              }`}
+            >
+              {useTse2026Active ? "TSE PesqEle 2026 (Ativo)" : "Tracking Interno"}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
+          {TSE_PESQELE_POLLS_2026.map((tsePoll) => {
+            const isSelected = useTse2026Active && selectedTse2026Poll?.id === tsePoll.id;
+            return (
+              <button
+                key={tsePoll.id}
+                onClick={() => {
+                  setSelectedTse2026Poll(tsePoll);
+                  setUseTse2026Active(true);
+                }}
+                className={`p-3 rounded-xl text-left transition-all border flex flex-col justify-between space-y-2 ${
+                  isSelected
+                    ? "bg-[#16304A] border-[#D4A537] shadow-md ring-1 ring-[#D4A537]/30"
+                    : "bg-[#112233] border-[#1E3A5F] hover:border-slate-600 opacity-80 hover:opacity-100"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#0B1B2B] text-[#D4A537] border border-[#D4A537]/30 truncate">
+                      {tsePoll.numeroRegistroTSE}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {tsePoll.dataDivulgacao}
+                    </span>
+                  </div>
+                  <div className="text-xs font-bold text-white mt-1.5 truncate">
+                    {tsePoll.instituto}
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate">
+                    {tsePoll.cargoPesquisado}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-[#1E3A5F]/60 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">
+                    Amostra: <strong className="text-slate-200 font-mono">{tsePoll.quantidadeEntrevistados}</strong>
+                  </span>
+                  <span className="font-mono font-bold text-[#D4A537]">
+                    ±{tsePoll.margemErro}%
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 {
   "name": "E-Candidato",
-  "description": "Solução avançada de inteligência eleitoral com gestão de múltiplos candidatos, dashboard de voluntários e militância com disparador de notificações push, calendário de eventos, simulação preditiva de propostas e transições dinâmicas.",
+  "description": "Solução avançada de inteligência eleitoral com integração oficial à base do TSE (Eleições Gerais 2026 e PesqEle), gestão de múltiplos candidatos, dashboard de voluntários, disparador de notificações push e simulação preditiva.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

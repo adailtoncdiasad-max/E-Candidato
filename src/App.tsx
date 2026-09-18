@@ -393,6 +393,7 @@ export default function App() {
                   candidate={currentData.candidate}
                   currentSphere={currentSphere}
                   onNavigateToModule={(mod) => setCurrentModule(mod as NavModule)}
+                  onSelectCandidate={(cand) => handleSelectActiveCandidate(cand)}
                 />
               )}
             </motion.div>
