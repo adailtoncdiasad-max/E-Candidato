@@ -1,0 +1,57 @@
+{
+  "id": "/",
+  "name": "E-Candidato - Inteligência Eleitoral",
+  "short_name": "E-Candidato",
+  "description": "Solução avançada de inteligência eleitoral, predição estatística, espacialização de votos e estratégia com IA para candidatos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B1B2B",
+  "theme_color": "#0B1B2B",
+  "lang": "pt-BR",
+  "categories": ["productivity", "politics", "utilities", "business"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Radar de Pesquisas",
+      "short_name": "Pesquisas",
+      "description": "Acompanhe as intenções de voto e projeções de segundo turno",
+      "url": "/?module=polls",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Gerador de Discursos IA",
+      "short_name": "Discursos IA",
+      "description": "Elabore discursos de palanque e estratégias com inteligência artificial",
+      "url": "/?module=ai_strategy",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mapa Territorial",
+      "short_name": "Territórios",
+      "description": "Espacialização e zonas de votação",
+      "url": "/?module=hexmap",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "E-Candidato",
+  "description": "Solução avançada de inteligência eleitoral, predição estatística, espacialização de votos, monitoramento de redes sociais e gerador de estratégias e discursos com IA para candidatos das três esferas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
